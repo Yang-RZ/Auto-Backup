@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31112.23
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutoBackup", "AutoBackup\AutoBackup.csproj", "{6FFDF5E0-139A-43A7-8786-AE35F2951464}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "test", "test\test.csproj", "{5FD8C754-DD76-41E3-A950-91400CD9977F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6FFDF5E0-139A-43A7-8786-AE35F2951464}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6FFDF5E0-139A-43A7-8786-AE35F2951464}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6FFDF5E0-139A-43A7-8786-AE35F2951464}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6FFDF5E0-139A-43A7-8786-AE35F2951464}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5FD8C754-DD76-41E3-A950-91400CD9977F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5FD8C754-DD76-41E3-A950-91400CD9977F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5FD8C754-DD76-41E3-A950-91400CD9977F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5FD8C754-DD76-41E3-A950-91400CD9977F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2CD08B2F-7B95-4867-A096-02B4B52133BB}
+	EndGlobalSection
+EndGlobal
