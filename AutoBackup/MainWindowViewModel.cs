@@ -15,14 +15,31 @@ namespace AutoBackup
     public class MainWindowViewModel : BindableBase
     {
         CompositeDisposable disposables;
-        IObservable<FileSystemEventArgs> oFileContentChanged;
+        IObservable<FileSystemEventArgs> oFileCreated;
+        IObservable<FileSystemEventArgs> oFileChanged;
+        IObservable<FileSystemEventArgs> oFileDeleted;
         IObservable<FileSystemEventArgs> oFileRenamed;
         FileSystemWatcher watcher = new FileSystemWatcher();
 
         public MainWindowViewModel()
         {
             disposables = new CompositeDisposable();
-            oFileContentChanged = Observable.FromEvent<FileSystemEventHandler, FileSystemEventArgs>(
+            oFileCreated = Observable.FromEvent<FileSystemEventHandler, FileSystemEventArgs>(
+                handler =>
+                {
+                    FileSystemEventHandler fileSystemEventHandler = (sender, e) => handler(e);
+                    return fileSystemEventHandler;
+                },
+                h =>
+                {
+                    watcher.Created += h;
+                },
+                h =>
+                {
+                    watcher.Created -= h;
+                }
+                );
+            oFileChanged = Observable.FromEvent<FileSystemEventHandler, FileSystemEventArgs>(
                 handler =>
                 {
                     FileSystemEventHandler fileSystemEventHandler = (sender, e) => handler(e);
@@ -31,16 +48,27 @@ namespace AutoBackup
                 h =>
                 {
                     watcher.Changed += h;
-                    watcher.Created += h;
+                },
+                h =>
+                {
+                    watcher.Changed -= h;
+                }
+             );
+            oFileDeleted = Observable.FromEvent<FileSystemEventHandler, FileSystemEventArgs>(
+                handler =>
+                {
+                    FileSystemEventHandler fileSystemEventHandler = (sender, e) => handler(e);
+                    return fileSystemEventHandler;
+                },
+                h =>
+                {
                     watcher.Deleted += h;
                 },
-                 h =>
-                 {
-                     watcher.Changed -= h;
-                     watcher.Created -= h;
-                     watcher.Deleted -= h;
-                 }
-                );
+                h =>
+                {
+                    watcher.Deleted -= h;
+                }
+             );
             oFileRenamed = Observable.FromEvent<RenamedEventHandler, RenamedEventArgs>(
                 handler =>
                 {
@@ -51,11 +79,11 @@ namespace AutoBackup
                 {
                     watcher.Renamed += h;
                 },
-                 h =>
-                 {
-                     watcher.Renamed -= h;
-                 }
-                );
+                h =>
+                {
+                    watcher.Renamed -= h;
+                }
+             );
         }
 
         public ObservableCollection<string> BackupTypeList { get; set; } = new ObservableCollection<string>();
@@ -70,6 +98,7 @@ namespace AutoBackup
                 if (System.IO.Directory.Exists(value))
                 {
                     watcher.Path = value;
+                    watcher.IncludeSubdirectories = true;
                     watcher.NotifyFilter = NotifyFilters.LastAccess | NotifyFilters.LastWrite
                                          | NotifyFilters.FileName | NotifyFilters.DirectoryName;
                     watcher.EnableRaisingEvents = true;
@@ -83,7 +112,6 @@ namespace AutoBackup
         }
 
         private string _DirectoryToStoreBackup;
-
         public string DirectoryToStoreBackup
         {
             get { return _DirectoryToStoreBackup; }
@@ -94,91 +122,125 @@ namespace AutoBackup
             }
         }
 
-        /// <summary>
-        /// 每种修改都可以通过拷贝来备份
-        /// </summary>
-        /// <param name="sFilePath"></param>
-        private void OperateFile(string sFilePath, WatcherChangeTypes watcherChangeTypes, string sOldFullPath = "")
+        private bool _Running;
+        public bool Running
+        {
+            get { return _Running; }
+            set
+            {
+
+                UpdateProperty(ref _Running, value);
+            }
+        }
+
+        private double _BackupAfterChangedDelay = 5;
+        public double BackupAfterChangedDelay
+        {
+            get { return _BackupAfterChangedDelay; }
+            set
+            {
+
+                UpdateProperty(ref _BackupAfterChangedDelay, value);
+            }
+        }
+
+        private void OperationForCreate(string sFilePath)
         {
             DirectoryInfo directoryInfo = new DirectoryInfo(sFilePath);
 
-            switch (watcherChangeTypes)
+            if (directoryInfo.Attributes == FileAttributes.Directory)
             {
-                case WatcherChangeTypes.Created:
-                case WatcherChangeTypes.Changed:
-                    if (directoryInfo.Attributes == FileAttributes.Directory)
-                    {
-                        string sNewDirectory = System.IO.Path.Combine(DirectoryToStoreBackup, sFilePath.Replace(DirectoryToBackup, "").Substring(1));
-                        System.IO.Directory.CreateDirectory(sNewDirectory);
-                    }
-                    else
-                    {
-                        string sFolderOfChangedFile = System.IO.Directory.GetParent(sFilePath).FullName.Replace(DirectoryToBackup, "");
-                        string sNewDirectory = System.IO.Path.Combine(DirectoryToStoreBackup,
-                                sFolderOfChangedFile.Length > 0 ? sFolderOfChangedFile.Substring(1) : sFolderOfChangedFile);
-                        System.IO.Directory.CreateDirectory(sNewDirectory);
-                        System.IO.File.Copy(sFilePath, sNewDirectory + "\\" + directoryInfo.Name);
-                    }
-                    break;
-                case WatcherChangeTypes.Deleted:
-                    if (directoryInfo.Attributes == FileAttributes.Directory)
-                    {
-                        string sNewDirectory = System.IO.Path.Combine(DirectoryToStoreBackup, sFilePath.Replace(DirectoryToBackup, "").Substring(1));
-                        System.IO.Directory.Delete(sNewDirectory);
-                    }
-                    else
-                    {
-                        string sFolderOfChangedFile = System.IO.Directory.GetParent(sFilePath).FullName.Replace(DirectoryToBackup, "");
-                        string sNewDirectory = System.IO.Path.Combine(DirectoryToStoreBackup,
-                                sFolderOfChangedFile.Length > 0 ? sFolderOfChangedFile.Substring(1) : sFolderOfChangedFile);
-                        System.IO.Directory.CreateDirectory(sNewDirectory);
-                        string sBackupedFilePath;
-                        sBackupedFilePath = sNewDirectory + "\\" + directoryInfo.Name;
-                        if (System.IO.File.Exists(sBackupedFilePath))
-                        {
-                            System.IO.File.Delete(sBackupedFilePath);
-                        }
-                    }
-                    break;
-                case WatcherChangeTypes.Renamed:
-                    if (directoryInfo.Attributes == FileAttributes.Directory)
-                    {
-                        string sOldDirectory = System.IO.Path.Combine(DirectoryToStoreBackup, sOldFullPath.Replace(DirectoryToBackup, "").Substring(1));
-                        string sNewDirectory = System.IO.Path.Combine(DirectoryToStoreBackup, sFilePath.Replace(DirectoryToBackup, "").Substring(1));
-
-                        if (Directory.Exists(sOldDirectory))
-                        {
-                            System.IO.Directory.Move(sOldDirectory, sNewDirectory);
-                        }
-                        else
-                            System.IO.Directory.CreateDirectory(sNewDirectory);
-                    }
-                    else
-                    {
-                        string sFolderOfChangedFile = System.IO.Directory.GetParent(sFilePath).FullName.Replace(DirectoryToBackup, "");
-                        string sNewDirectory = System.IO.Path.Combine(DirectoryToStoreBackup,
-                                sFolderOfChangedFile.Length > 0 ? sFolderOfChangedFile.Substring(1) : sFolderOfChangedFile);
-                        System.IO.Directory.CreateDirectory(sNewDirectory);
-
-                        string sBackupedFilePath;
-                        string sNewFilePath;
-                        sNewFilePath = sNewDirectory + "\\" + directoryInfo.Name;
-                        sBackupedFilePath = sNewDirectory + "\\" + System.IO.Path.GetFileName(sOldFullPath);
-                        if (File.Exists(sBackupedFilePath))
-                        {
-                            System.IO.File.Move(sBackupedFilePath, sNewFilePath);
-                        }
-                        else
-                            System.IO.File.Move(sFilePath, sNewFilePath);
-
-                    }
-                    break;
-                case WatcherChangeTypes.All:
-                    break;
-                default:
-                    break;
+                string sNewDirectory = System.IO.Path.Combine(DirectoryToStoreBackup, sFilePath.Replace(DirectoryToBackup, "").Substring(1));
+                System.IO.Directory.CreateDirectory(sNewDirectory);
             }
+            else
+            {
+                string sFolderOfChangedFile = System.IO.Directory.GetParent(sFilePath).FullName.Replace(DirectoryToBackup, "");
+                string sNewDirectory = System.IO.Path.Combine(DirectoryToStoreBackup,
+                        sFolderOfChangedFile.Length > 0 ? sFolderOfChangedFile.Substring(1) : sFolderOfChangedFile);
+                System.IO.Directory.CreateDirectory(sNewDirectory);
+                System.IO.File.Copy(sFilePath, sNewDirectory + "\\" + directoryInfo.Name);
+            }
+        }
 
+        private void OperationForChange(string sFilePath)
+        {
+            DirectoryInfo directoryInfo = new DirectoryInfo(sFilePath);
+
+            if (directoryInfo.Attributes == FileAttributes.Directory)
+            {
+                string sNewDirectory = System.IO.Path.Combine(DirectoryToStoreBackup, sFilePath.Replace(DirectoryToBackup, "").Substring(1));
+                System.IO.Directory.CreateDirectory(sNewDirectory);
+            }
+            else
+            {
+                string sFolderOfChangedFile = System.IO.Directory.GetParent(sFilePath).FullName.Replace(DirectoryToBackup, "");
+                string sNewDirectory = System.IO.Path.Combine(DirectoryToStoreBackup,
+                        sFolderOfChangedFile.Length > 0 ? sFolderOfChangedFile.Substring(1) : sFolderOfChangedFile);
+                System.IO.Directory.CreateDirectory(sNewDirectory);
+                System.IO.File.Copy(sFilePath, sNewDirectory + "\\" + directoryInfo.Name);
+            }
+        }
+
+        private void OperationForDelete(string sFilePath)
+        {
+            DirectoryInfo directoryInfo = new DirectoryInfo(sFilePath);
+
+            if (directoryInfo.Attributes == FileAttributes.Directory)
+            {
+                string sNewDirectory = System.IO.Path.Combine(DirectoryToStoreBackup, sFilePath.Replace(DirectoryToBackup, "").Substring(1));
+                System.IO.Directory.Delete(sNewDirectory);
+            }
+            else
+            {
+                string sFolderOfChangedFile = System.IO.Directory.GetParent(sFilePath).FullName.Replace(DirectoryToBackup, "");
+                string sNewDirectory = System.IO.Path.Combine(DirectoryToStoreBackup,
+                        sFolderOfChangedFile.Length > 0 ? sFolderOfChangedFile.Substring(1) : sFolderOfChangedFile);
+                System.IO.Directory.CreateDirectory(sNewDirectory);
+                string sBackupedFilePath;
+                sBackupedFilePath = sNewDirectory + "\\" + directoryInfo.Name;
+                if (System.IO.File.Exists(sBackupedFilePath))
+                {
+                    System.IO.File.Delete(sBackupedFilePath);
+                }
+            }
+        }
+
+        private void OperationForRename(string sOldFullPath, string sNewFullPath)
+        {
+
+            DirectoryInfo directoryInfo = new DirectoryInfo(sNewFullPath);
+
+            if (directoryInfo.Attributes == FileAttributes.Directory)
+            {
+                string sOldDirectory = System.IO.Path.Combine(DirectoryToStoreBackup, sOldFullPath.Replace(DirectoryToBackup, "").Substring(1));
+                string sNewDirectory = System.IO.Path.Combine(DirectoryToStoreBackup, sNewFullPath.Replace(DirectoryToBackup, "").Substring(1));
+
+                if (Directory.Exists(sOldDirectory))
+                {
+                    System.IO.Directory.Move(sOldDirectory, sNewDirectory);
+                }
+                else
+                    System.IO.Directory.CreateDirectory(sNewDirectory);
+            }
+            else
+            {
+                string sFolderOfChangedFile = System.IO.Directory.GetParent(sNewFullPath).FullName.Replace(DirectoryToBackup, "");
+                string sNewDirectory = System.IO.Path.Combine(DirectoryToStoreBackup,
+                        sFolderOfChangedFile.Length > 0 ? sFolderOfChangedFile.Substring(1) : sFolderOfChangedFile);
+                System.IO.Directory.CreateDirectory(sNewDirectory);
+
+                string sBackupedFilePath;
+                string sNewFilePath;
+                sNewFilePath = sNewDirectory + "\\" + directoryInfo.Name;
+                sBackupedFilePath = sNewDirectory + "\\" + System.IO.Path.GetFileName(sOldFullPath);
+                if (File.Exists(sBackupedFilePath))
+                {
+                    System.IO.File.Move(sBackupedFilePath, sNewFilePath);
+                }
+                else
+                    System.IO.File.Move(sNewFullPath, sNewFilePath);
+            }
         }
 
         private RelayCommand _CommandStart;
@@ -190,21 +252,47 @@ namespace AutoBackup
                 {
                     _CommandStart = new RelayCommand((o) =>
                     {
+                        Running = true;
                         disposables.Add(
-                            oFileContentChanged.Subscribe(e =>
+                            oFileCreated.Subscribe(e =>
                             {
                                 Console.WriteLine($"{e.ChangeType}, {e.FullPath}");
                                 Console.WriteLine($"{e.ChangeType}, {DirectoryToStoreBackup}");
-                                OperateFile(e.FullPath, e.ChangeType);
+                                OperationForCreate(e.FullPath);
                             })
                             );
 
+                        disposables.Add(
+                            oFileChanged
+                            .GroupBy(e => e.FullPath)
+                            .Subscribe(group =>
+                            {
+                                group
+                                .Throttle(TimeSpan.FromSeconds(BackupAfterChangedDelay))
+                                .Subscribe(
+                                        e =>
+                                        {
+                                            Console.WriteLine($"{e.ChangeType}, {e.FullPath}");
+                                            Console.WriteLine($"{e.ChangeType}, {DirectoryToStoreBackup}");
+                                            OperationForChange(e.FullPath);
+                                        }
+                                    );
+                            })
+                            );
+                        disposables.Add(
+                            oFileDeleted.Subscribe(e =>
+                            {
+                                Console.WriteLine($"{e.ChangeType}, {e.FullPath}");
+                                Console.WriteLine($"{e.ChangeType}, {DirectoryToStoreBackup}");
+                                OperationForDelete(e.FullPath);
+                            })
+                            );
                         disposables.Add(
                             oFileRenamed.Subscribe(e =>
                             {
                                 Console.WriteLine($"{e.ChangeType}, {e.FullPath}");
                                 Console.WriteLine($"{e.ChangeType}, {DirectoryToStoreBackup}");
-                                OperateFile(e.FullPath, e.ChangeType, ((RenamedEventArgs)e).OldFullPath);
+                                OperationForRename(((RenamedEventArgs)e).OldFullPath, e.FullPath);
                             })
                             );
                     });
@@ -224,6 +312,7 @@ namespace AutoBackup
                     _CommandStop = new RelayCommand((o) =>
                     {
                         disposables.Dispose();
+                        Running = false;
                     });
                 }
 

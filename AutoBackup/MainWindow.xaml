@@ -8,6 +8,7 @@
         Title="MainWindow" Height="450" Width="800"
         d:DataContext="{d:DesignInstance local:MainWindowViewModel}">
     <Window.Resources>
+        <local:OppositeConverter x:Key="convOpposite" />
         <Style TargetType="TextBlock" >
             <Setter Property="HorizontalAlignment" Value="Center" />
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -15,6 +16,8 @@
         <Style TargetType="TextBox">
             <Setter Property="HorizontalAlignment" Value="Center" />
             <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <Style TargetType="Button">
             <Setter Property="Margin" Value="3" />
@@ -31,20 +34,22 @@
         </Grid.ColumnDefinitions>
 
         <Grid Grid.Row="0" Grid.Column="0">
-            <StackPanel>
-                <StackPanel Orientation="Horizontal">
-                    <Rectangle Width="20" />
-                    <TextBlock Text="待备份目录" />
-                    <Rectangle Width="20" />
-                    <TextBox x:Name="txtDirectory" Text="{Binding DirectoryToBackup}" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal">
-                    <Rectangle Width="20" />
-                    <TextBlock Text="保存备份目录" />
-                    <Rectangle Width="20" />
-                    <TextBox x:Name="txtTargetDirectory" Text="{Binding DirectoryToStoreBackup}" />
-                </StackPanel>
-            </StackPanel>
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top"  Text="待备份目录" />
+                <TextBox x:Name="txtDirectory" DockPanel.Dock="Top" 
+                         MinWidth="100"
+                         Text="{Binding DirectoryToBackup}" />
+                <TextBlock DockPanel.Dock="Top" Text="保存备份目录" />
+                <TextBox x:Name="txtTargetDirectory" DockPanel.Dock="Top" 
+                         MinWidth="100"
+                         Text="{Binding DirectoryToStoreBackup}" />
+                <TextBlock DockPanel.Dock="Top" Text="备份延迟(单位:秒, 仅适用于修改)" />
+                <TextBox x:Name="txtBackupDelay" DockPanel.Dock="Top" 
+                         MinWidth="50"
+                         Text="{Binding BackupAfterChangedDelay}" />
+
+                <Rectangle></Rectangle>
+            </DockPanel>
         </Grid>
 
         <Grid Grid.Row="0" Grid.Column="1">
@@ -59,7 +64,8 @@
         </Grid>
 
         <Button x:Name="btnStart" Grid.Row="1"
-            FontSize="50"
+                FontSize="50"
+                IsEnabled="{Binding Running, Converter={StaticResource convOpposite}}"
                 Command="{Binding CommandStart}"
                 >
             开始
@@ -67,6 +73,7 @@
 
         <Button x:Name="btnStop" Grid.Row="1" Grid.Column="1"
                 FontSize="50" Foreground="Red"
+                IsEnabled="{Binding Running}"
                 Command="{Binding CommandStop}"
                 >
             结束
